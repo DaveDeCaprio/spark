@@ -198,15 +198,16 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
       stringOrError(analyzed.treeString(verbose = true))
     ).filter(_.nonEmpty).mkString("\n")
 
-    s"""== Parsed Logical Plan ==
-       |${stringOrError(logical.treeString(verbose = true))}
-       |== Analyzed Logical Plan ==
-       |$analyzedPlan
-       |== Optimized Logical Plan ==
-       |${stringOrError(optimizedPlan.treeString(verbose = true))}
-       |== Physical Plan ==
-       |${stringOrError(executedPlan.treeString(verbose = true))}
-    """.stripMargin.trim
+    val builder = new StringBuilder
+    builder.append("== Parsed Logical Plan ==\n")
+    builder.append(stringOrError(logical.treeString(verbose = true)))
+    builder.append("== Analyzed Logical Plan ==\n")
+    builder.append(analyzedPlan)
+    builder.append("== Optimized Logical Plan ==\n")
+    builder.append(stringOrError(optimizedPlan.treeString(verbose = true)))
+    builder.append("== Physical Plan ==\n")
+    builder.append(stringOrError(executedPlan.treeString(verbose = true)))
+    builder.toString
   }
 
   def stringWithStats: String = withRedaction {
