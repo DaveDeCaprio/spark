@@ -136,19 +136,21 @@ class CacheManager extends Logging {
       spark: SparkSession,
       plan: LogicalPlan,
       cascade: Boolean,
-      blocking: Boolean): Unit = writeLock {
-    val shouldRemove: LogicalPlan => Boolean =
-      if (cascade) {
-        _.find(_.sameResult(plan)).isDefined
-      } else {
-        _.sameResult(plan)
-      }
-    val it = cachedData.iterator()
-    while (it.hasNext) {
-      val cd = it.next()
-      if (shouldRemove(cd.plan)) {
-        cd.cachedRepresentation.cacheBuilder.clearCache(blocking)
-        it.remove()
+      blocking: Boolean): Unit = {
+    writeLock {
+      val shouldRemove: LogicalPlan => Boolean =
+        if (cascade) {
+          _.find(_.sameResult(plan)).isDefined
+        } else {
+          _.sameResult(plan)
+        }
+      val it = cachedData.iterator()
+      while (it.hasNext) {
+        val cd = it.next()
+        if (shouldRemove(cd.plan)) {
+          cd.cachedRepresentation.cacheBuilder.clearCache(blocking)
+          it.remove()
+        }
       }
     }
     // Re-compile dependent cached queries after removing the cached query.
