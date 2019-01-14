@@ -160,7 +160,7 @@ class CacheManager extends Logging {
   /**
    * Tries to re-cache all the cache entries that refer to the given plan.
    */
-  def recacheByPlan(spark: SparkSession, plan: LogicalPlan): Unit = writeLock {
+  def recacheByPlan(spark: SparkSession, plan: LogicalPlan): Unit = readLock {
     recacheByCondition(spark, _.find(_.sameResult(plan)).isDefined)
   }
 
@@ -168,26 +168,38 @@ class CacheManager extends Logging {
       spark: SparkSession,
       condition: LogicalPlan => Boolean,
       clearCache: Boolean = true): Unit = {
-    val it = cachedData.iterator()
-    val needToRecache = scala.collection.mutable.ArrayBuffer.empty[CachedData]
-    while (it.hasNext) {
-      val cd = it.next()
-      if (condition(cd.plan)) {
-        if (clearCache) {
-          cd.cachedRepresentation.cacheBuilder.clearCache()
+	  val needToRecache = scala.collection.mutable.ArrayBuffer.empty[CachedData]
+	  writeLock {
+		  val it = cachedData.iterator()
+		  while (it.hasNext) {
+			  val cd = it.next()
+			  if (condition(cd.plan)) {
+				  if (clearCache) {
+					  cd.cachedRepresentation.cacheBuilder.clearCache()
+				  }
+				  // Remove the cache entry before we create a new one, so that we can have a different
+				  // physical plan.
+				  it.remove()
+				  needToRecache += cd
+			  }
+		  }
+	  }
+	  val recomputedPlans = needToRecache.map { cd =>
+		  val plan = spark.sessionState.executePlan(cd.plan).executedPlan
+		  val newCache = InMemoryRelation(
+			  cacheBuilder = cd.cachedRepresentation.cacheBuilder.withCachedPlan(plan),
+			  logicalPlan = cd.plan)
+		  cd.copy(cachedRepresentation = newCache)
+	  }
+	  writeLock {
+		  needToRecache.foreach { c =>
+        if (lookupCachedData(c.plan).nonEmpty) {
+          logWarning("While recaching, data was already added to cache.")
+        } else {
+          cachedData.add(c)
         }
-        // Remove the cache entry before we create a new one, so that we can have a different
-        // physical plan.
-        it.remove()
-        val plan = spark.sessionState.executePlan(cd.plan).executedPlan
-        val newCache = InMemoryRelation(
-          cacheBuilder = cd.cachedRepresentation.cacheBuilder.withCachedPlan(plan),
-          logicalPlan = cd.plan)
-        needToRecache += cd.copy(cachedRepresentation = newCache)
       }
-    }
-
-    needToRecache.foreach(cachedData.add)
+	  }
   }
 
   /** Optionally returns cached data for the given [[Dataset]] */
