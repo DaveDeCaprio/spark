@@ -162,7 +162,7 @@ class CacheManager extends Logging {
   /**
    * Tries to re-cache all the cache entries that refer to the given plan.
    */
-  def recacheByPlan(spark: SparkSession, plan: LogicalPlan): Unit = readLock {
+  def recacheByPlan(spark: SparkSession, plan: LogicalPlan): Unit = {
     recacheByCondition(spark, _.find(_.sameResult(plan)).isDefined)
   }
 
@@ -239,13 +239,12 @@ class CacheManager extends Logging {
    * Tries to re-cache all the cache entries that contain `resourcePath` in one or more
    * `HadoopFsRelation` node(s) as part of its logical plan.
    */
-  def recacheByPath(spark: SparkSession, resourcePath: String): Unit = writeLock {
+  def recacheByPath(spark: SparkSession, resourcePath: String): Unit = {
     val (fs, qualifiedPath) = {
       val path = new Path(resourcePath)
       val fs = path.getFileSystem(spark.sessionState.newHadoopConf())
       (fs, fs.makeQualified(path))
     }
-
     recacheByCondition(spark, _.find(lookupAndRefresh(_, fs, qualifiedPath)).isDefined)
   }
 
