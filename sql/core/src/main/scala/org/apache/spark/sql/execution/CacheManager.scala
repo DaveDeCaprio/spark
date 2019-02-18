@@ -145,17 +145,19 @@ class CacheManager extends Logging {
         _.sameResult(plan)
       }
     val plansToUncache = mutable.Buffer[CachedData]()
-    writeLock {
+    readLock {
       val it = cachedData.iterator()
       while (it.hasNext) {
         val cd = it.next()
         if (shouldRemove(cd.plan)) {
           plansToUncache += cd
-          it.remove()
         }
       }
     }
     plansToUncache.foreach { cd =>
+      writeLock {
+        cachedData.remove(cd)
+      }
       cd.cachedRepresentation.cacheBuilder.clearCache(blocking)
     }
     // Re-compile dependent cached queries after removing the cached query.
