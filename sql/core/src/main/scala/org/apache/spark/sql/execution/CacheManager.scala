@@ -176,19 +176,22 @@ class CacheManager extends Logging {
       condition: LogicalPlan => Boolean,
       clearCache: Boolean = true): Unit = {
     val needToRecache = scala.collection.mutable.ArrayBuffer.empty[CachedData]
-    writeLock {
+    readLock {
       val it = cachedData.iterator()
       while (it.hasNext) {
         val cd = it.next()
         if (condition(cd.plan)) {
           needToRecache += cd
-          // Remove the cache entry before we create a new one, so that we can have a different
-          // physical plan.
-          it.remove()
         }
       }
     }
+
     needToRecache.map { cd =>
+      writeLock {
+        // Remove the cache entry before we create a new one, so that we can have a different
+        // physical plan.
+        cachedData.remove(cd)
+      }
       if (clearCache) {
         cd.cachedRepresentation.cacheBuilder.clearCache()
       }
