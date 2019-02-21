@@ -57,6 +57,9 @@ private[spark] class FairSchedulableBuilder(val rootPool: Pool, conf: SparkConf)
   extends SchedulableBuilder with Logging {
 
   val SCHEDULER_ALLOCATION_FILE_PROPERTY = "spark.scheduler.allocation.file"
+  val SCHEDULER_DEFAULT_SCHEDULING_MODE_PROPERTY = "spark.scheduler.pool.default.schedulingMode"
+  val SCHEDULER_DEFAULT_MINIMUM_SHARE_PROPERTY = "spark.scheduler.pool.default.minShare"
+  val SCHEDULER_DEFAULT_WEIGHT_PROPERTY = "spark.scheduler.pool.default.weight"
   val schedulerAllocFile = conf.getOption(SCHEDULER_ALLOCATION_FILE_PROPERTY)
   val DEFAULT_SCHEDULER_FILE = "fairscheduler.xml"
   val FAIR_SCHEDULER_PROPERTIES = "spark.scheduler.pool"
@@ -66,9 +69,11 @@ private[spark] class FairSchedulableBuilder(val rootPool: Pool, conf: SparkConf)
   val WEIGHT_PROPERTY = "weight"
   val POOL_NAME_PROPERTY = "@name"
   val POOLS_PROPERTY = "pool"
-  val DEFAULT_SCHEDULING_MODE = SchedulingMode.FIFO
-  val DEFAULT_MINIMUM_SHARE = 0
-  val DEFAULT_WEIGHT = 1
+
+  val DEFAULT_SCHEDULING_MODE = conf.getOption(SCHEDULER_DEFAULT_SCHEDULING_MODE_PROPERTY)
+    .map(SchedulingMode.withName).getOrElse(SchedulingMode.FIFO)
+  val DEFAULT_MINIMUM_SHARE = conf.getInt(SCHEDULER_DEFAULT_MINIMUM_SHARE_PROPERTY, 1)
+  val DEFAULT_WEIGHT = conf.getInt(SCHEDULER_DEFAULT_WEIGHT_PROPERTY, 1)
 
   override def buildPools() {
     var fileData: Option[(InputStream, String)] = None
