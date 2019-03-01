@@ -144,16 +144,10 @@ class CacheManager extends Logging {
       } else {
         _.sameResult(plan)
       }
-    val plansToUncache = mutable.Buffer[CachedData]()
-    readLock {
-      val it = cachedData.iterator()
-      while (it.hasNext) {
-        val cd = it.next()
-        if (shouldRemove(cd.plan)) {
-          plansToUncache += cd
-        }
-      }
+    val cachedDataCopy = readLock {
+      cachedData.asScala.clone()
     }
+    val plansToUncache = cachedDataCopy.filter(cd => shouldRemove(cd.plan))
     plansToUncache.foreach { cd =>
       writeLock {
         cachedData.remove(cd)
@@ -177,17 +171,11 @@ class CacheManager extends Logging {
       spark: SparkSession,
       condition: LogicalPlan => Boolean,
       clearCache: Boolean = true): Unit = {
-    val needToRecache = scala.collection.mutable.ArrayBuffer.empty[CachedData]
-    readLock {
-      val it = cachedData.iterator()
-      while (it.hasNext) {
-        val cd = it.next()
-        if (condition(cd.plan)) {
-          needToRecache += cd
-        }
-      }
+    val cachedDataCopy = readLock {
+      cachedData.asScala.clone()
     }
 
+    val needToRecache = cachedDataCopy.filter(cd => condition(cd.plan))
     needToRecache.map { cd =>
       writeLock {
         // Remove the cache entry before we create a new one, so that we can have a different
@@ -213,7 +201,7 @@ class CacheManager extends Logging {
   }
 
   /** Optionally returns cached data for the given [[Dataset]] */
-  def lookupCachedData(query: Dataset[_]): Option[CachedData] = readLock {
+  def lookupCachedData(query: Dataset[_]): Option[CachedData] = {
     lookupCachedData(query.logicalPlan)
   }
 
