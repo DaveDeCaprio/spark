@@ -84,6 +84,8 @@ private[spark] class EventLoggingListener(
 
   private var writer: Option[PrintWriter] = None
 
+  private var streamFailed: Boolean = false
+
   // For testing. Keep track of all JSON serialized events that have been logged.
   private[scheduler] val loggedEvents = new ArrayBuffer[JValue]
 
@@ -135,16 +137,26 @@ private[spark] class EventLoggingListener(
 
   /** Log the event as JSON. */
   private def logEvent(event: SparkListenerEvent, flushLogger: Boolean = false) {
-    val eventJson = JsonProtocol.sparkEventToJson(event)
-    // scalastyle:off println
-    writer.foreach(_.println(compact(render(eventJson))))
-    // scalastyle:on println
-    if (flushLogger) {
-      writer.foreach(_.flush())
-      hadoopDataStream.foreach(_.hflush())
-    }
-    if (testing) {
-      loggedEvents += eventJson
+    if (!streamFailed) {
+      try {
+        val eventJson = JsonProtocol.sparkEventToJson(event)
+        // scalastyle:off println
+        writer.foreach(_.println(compact(render(eventJson))))
+        // scalastyle:on println
+        if (flushLogger) {
+          writer.foreach(_.flush())
+          hadoopDataStream.foreach(_.hflush())
+        }
+        if (testing) {
+          loggedEvents += eventJson
+        }
+      }
+      catch {
+        case e: IOException =>
+          logWarning(s"Exception while writing log event to ${logPath}.  Event logging will be " +
+            "disabled for the remainder of this application.", e)
+          streamFailed = true
+      }
     }
   }
 
